@@ -37,16 +37,15 @@ const MuralTile = memo(function MuralTile({
   return (
     <button
       data-index={origIdx}
-      className={`group block p-[3px] bg-transparent cursor-pointer relative hover:z-10 ${
-        isHighlighted ? "tile-highlighted" : ""
-      }`}
-      style={{ contain: "layout style" }}
+      className={`group block p-[3px] bg-transparent cursor-pointer relative hover:z-10 ${isHighlighted ? "tile-highlighted" : ""
+        }`}
+      style={{ contain: "layout style paint" }}
       type="button"
     >
       <img
         src={src}
         alt=""
-        className="w-full h-full object-cover rounded-[3px] block border border-white/4 brightness-[0.8] saturate-[0.95] transition-[border-color,box-shadow,transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:border-accent group-hover:shadow-[0_0_20px_rgba(201,168,76,0.25)] group-hover:scale-105 group-hover:brightness-100 group-hover:saturate-100"
+        className="w-full h-full object-cover rounded-[3px] block border border-white/4 opacity-90 transition-[transform,border-color] duration-200 ease-out group-hover:border-accent group-hover:scale-[1.03] group-hover:opacity-100"
         loading="eager"
         draggable={false}
       />
@@ -184,9 +183,8 @@ const PhotoMural = forwardRef<PhotoMuralHandle, PhotoMuralProps>(
 
     return (
       <div
-        className={`fixed inset-0 overflow-hidden bg-surface ${
-          isHighlighting ? "z-20 mural-highlighting" : "z-0"
-        }`}
+        className={`fixed inset-0 overflow-hidden bg-surface ${isHighlighting ? "z-20 mural-highlighting" : "z-0"
+          }`}
       >
         <div
           ref={scrollLayerRef}

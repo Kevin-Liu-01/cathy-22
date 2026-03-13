@@ -54,17 +54,17 @@ export default function PhotoModal({
 
   function getImageClass(): string {
     const base =
-      "max-w-[calc(100vw-80px)] md:max-w-[calc(100vw-200px)] max-h-[calc(100vh-160px)] md:max-h-[calc(100vh-300px)] object-contain border border-white/[0.06] rounded select-none will-change-[transform,opacity] transition-[transform,opacity] duration-[350ms] ease-[cubic-bezier(0.16,1,0.3,1)]";
+      "max-w-[calc(100vw-80px)] md:max-w-[calc(100vw-200px)] max-h-[calc(100vh-160px)] md:max-h-[calc(100vh-300px)] object-contain border border-white/[0.06] rounded select-none will-change-[transform,opacity] transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.33,1,0.68,1)]";
     if (hideImage) return `${base} opacity-0 scale-100`;
     if (isOpen) return `${base} scale-100 opacity-100`;
-    return `${base} scale-[0.97] opacity-0`;
+    return `${base} scale-[0.98] opacity-0`;
   }
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-[background,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-[background,opacity] duration-500 ease-[cubic-bezier(0.33,1,0.68,1)] ${
         isOpen
-          ? "bg-[rgba(10,12,8,0.96)] backdrop-blur-[20px] opacity-100 pointer-events-auto modal-open"
+          ? "bg-[rgba(10,12,8,0.97)] backdrop-blur-sm opacity-100 pointer-events-auto modal-open"
           : "bg-transparent opacity-0 pointer-events-none"
       }`}
       onClick={onClose}

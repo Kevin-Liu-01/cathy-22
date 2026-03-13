@@ -5,7 +5,7 @@ export const OPERATION_NAME = "CATHY-22";
 export const GRID_COLS = 8;
 export const SCROLL_DURATION_S = 80;
 export const SPOTLIGHT_INTERVAL_MS = 2500;
-export const AUTO_SPOTLIGHT_DURATION_MS = 2000;
+export const AUTO_SPOTLIGHT_DURATION_MS = 4000;
 export const HIGHLIGHT_DURATION_MS = 1200;
 export const ZOOM_TO_CENTER_MS = 500;
 
