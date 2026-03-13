@@ -15,8 +15,8 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Happy Birthday Cathy!",
-  description: "A birthday photo gallery for Cathy",
+  title: "Operation CATHY-22 // CLASSIFIED",
+  description: "A classified dossier for Cathy's 22nd birthday",
 };
 
 export default function RootLayout({
@@ -26,7 +26,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
+      <body
+        className={`${spaceGrotesk.variable} ${spaceMono.variable} bg-surface text-white overflow-hidden w-screen h-screen font-sans`}
+      >
         {children}
       </body>
     </html>

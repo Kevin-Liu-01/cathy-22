@@ -3,27 +3,53 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   IMAGES,
-  BIRTHDAY_AGE,
   SPOTLIGHT_INTERVAL_MS,
   AUTO_SPOTLIGHT_DURATION_MS,
   HIGHLIGHT_DURATION_MS,
   ZOOM_TO_CENTER_MS,
 } from "@/lib/constants";
+import type { FlyingImage, FlyoutState } from "@/lib/types";
 import { useImagePreloader } from "@/hooks/useImagePreloader";
 import LoadingScreen from "@/components/LoadingScreen";
 import PhotoMural, { type PhotoMuralHandle } from "@/components/PhotoMural";
 import PhotoModal from "@/components/PhotoModal";
+import HudOverlay from "@/components/HudOverlay";
+import ZoomFlyout from "@/components/ZoomFlyout";
 
-interface FlyingImage {
-  src: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  endX: number;
-  endY: number;
-  endW: number;
-  endH: number;
+function computeFlyout(
+  highlightedIndex: number,
+  rect: DOMRect,
+  naturalWidth: number,
+  naturalHeight: number
+): FlyingImage {
+  const ratio = naturalWidth / naturalHeight;
+  const h = rect.height;
+  const w = h * ratio;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const maxW = vw - 200;
+  const maxH = vh - 300;
+  let endW: number, endH: number;
+  if (ratio > maxW / maxH) {
+    endW = maxW;
+    endH = maxW / ratio;
+  } else {
+    endH = maxH;
+    endW = maxH * ratio;
+  }
+
+  return {
+    src: IMAGES[highlightedIndex],
+    x: rect.x + (rect.width - w) / 2,
+    y: rect.y,
+    w,
+    h,
+    endX: (vw - endW) / 2,
+    endY: (vh - endH) / 2,
+    endW,
+    endH,
+  };
 }
 
 export default function Home() {
@@ -34,14 +60,9 @@ export default function Home() {
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const [isAutoHighlight, setIsAutoHighlight] = useState(false);
   const [isAutoMode, setIsAutoMode] = useState(false);
+  const [flyout, setFlyout] = useState<FlyoutState | null>(null);
 
-  const [flyingImage, setFlyingImage] = useState<FlyingImage | null>(null);
-  const [flyToCenter, setFlyToCenter] = useState(false);
-  const [flyFading, setFlyFading] = useState(false);
-
-  const handleLoadingFinished = useCallback(() => {
-    setIsReady(true);
-  }, []);
+  const handleLoadingFinished = useCallback(() => setIsReady(true), []);
 
   useEffect(() => {
     if (!isReady || selectedIndex !== null || highlightedIndex !== null) return;
@@ -76,42 +97,21 @@ export default function Home() {
         return;
       }
 
-      const { rect, naturalWidth, naturalHeight } = info;
-      const ratio = naturalWidth / naturalHeight;
-      const h = rect.height;
-      const w = h * ratio;
+      const flyingImage = computeFlyout(
+        highlightedIndex,
+        info.rect,
+        info.naturalWidth,
+        info.naturalHeight
+      );
 
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const chromePadX = 200;
-      const chromePadY = 300;
-      const maxW = vw - chromePadX;
-      const maxH = vh - chromePadY;
-      let endW: number, endH: number;
-      if (ratio > maxW / maxH) {
-        endW = maxW;
-        endH = maxW / ratio;
-      } else {
-        endH = maxH;
-        endW = maxH * ratio;
-      }
-      const endX = (vw - endW) / 2;
-      const endY = (vh - endH) / 2;
-
-      setFlyingImage({
-        src: IMAGES[highlightedIndex],
-        x: rect.x + (rect.width - w) / 2,
-        y: rect.y,
-        w,
-        h,
-        endX,
-        endY,
-        endW,
-        endH,
-      });
+      setFlyout({ image: flyingImage, centered: false, fading: false });
 
       raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => setFlyToCenter(true));
+        raf2 = requestAnimationFrame(() => {
+          setFlyout((prev) =>
+            prev ? { ...prev, centered: true } : null
+          );
+        });
       });
 
       zoomTimer = setTimeout(() => {
@@ -121,12 +121,10 @@ export default function Home() {
         setIsAutoHighlight(false);
 
         chromeTimer = setTimeout(() => {
-          setFlyFading(true);
-          cleanTimer = setTimeout(() => {
-            setFlyingImage(null);
-            setFlyToCenter(false);
-            setFlyFading(false);
-          }, 300);
+          setFlyout((prev) =>
+            prev ? { ...prev, fading: true } : null
+          );
+          cleanTimer = setTimeout(() => setFlyout(null), 300);
         }, 450);
       }, ZOOM_TO_CENTER_MS);
     }, HIGHLIGHT_DURATION_MS);
@@ -147,9 +145,7 @@ export default function Home() {
     const timer = setTimeout(() => {
       setSelectedIndex(null);
       setIsAutoMode(false);
-      setFlyingImage(null);
-      setFlyToCenter(false);
-      setFlyFading(false);
+      setFlyout(null);
     }, AUTO_SPOTLIGHT_DURATION_MS);
 
     return () => clearTimeout(timer);
@@ -166,18 +162,14 @@ export default function Home() {
         case "ArrowRight":
           setSelectedIndex((i) => ((i ?? 0) + 1) % IMAGES.length);
           setIsAutoMode(false);
-          setFlyingImage(null);
-          setFlyToCenter(false);
-          setFlyFading(false);
+          setFlyout(null);
           break;
         case "ArrowLeft":
           setSelectedIndex(
             (i) => ((i ?? 0) - 1 + IMAGES.length) % IMAGES.length
           );
           setIsAutoMode(false);
-          setFlyingImage(null);
-          setFlyToCenter(false);
-          setFlyFading(false);
+          setFlyout(null);
           break;
       }
     }
@@ -188,35 +180,31 @@ export default function Home() {
   const isModalOpen = selectedIndex !== null;
   const imageSrc = selectedIndex !== null ? IMAGES[selectedIndex] : null;
 
-  function handleImageClick(index: number) {
+  const handleImageClick = useCallback((index: number) => {
     setHighlightedIndex(index);
     setIsAutoHighlight(false);
-  }
+  }, []);
 
-  function handleCloseModal() {
+  const handleCloseModal = useCallback(() => {
     setSelectedIndex(null);
     setHighlightedIndex(null);
     setIsAutoMode(false);
-    setFlyingImage(null);
-    setFlyToCenter(false);
-    setFlyFading(false);
-  }
+    setFlyout(null);
+  }, []);
 
-  function handlePrev() {
-    setSelectedIndex((i) => ((i ?? 0) - 1 + IMAGES.length) % IMAGES.length);
+  const handlePrev = useCallback(() => {
+    setSelectedIndex(
+      (i) => ((i ?? 0) - 1 + IMAGES.length) % IMAGES.length
+    );
     setIsAutoMode(false);
-    setFlyingImage(null);
-    setFlyToCenter(false);
-    setFlyFading(false);
-  }
+    setFlyout(null);
+  }, []);
 
-  function handleNext() {
+  const handleNext = useCallback(() => {
     setSelectedIndex((i) => ((i ?? 0) + 1) % IMAGES.length);
     setIsAutoMode(false);
-    setFlyingImage(null);
-    setFlyToCenter(false);
-    setFlyFading(false);
-  }
+    setFlyout(null);
+  }, []);
 
   return (
     <>
@@ -236,66 +224,35 @@ export default function Home() {
         onImageClick={handleImageClick}
       />
 
-      <div className="grid-overlay" />
-      <div className="mural-vignette" />
+      {/* Grid overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-4"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(201,168,76,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,0.025) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+        }}
+      />
 
-      <div className={`hud-overlay ${isModalOpen || highlightedIndex !== null ? "hud-overlay--hidden" : ""}`}>
-        <div className="corner-mark corner-mark--tl" />
-        <div className="corner-mark corner-mark--tr" />
-        <div className="corner-mark corner-mark--bl" />
-        <div className="corner-mark corner-mark--br" />
+      {/* Vignette */}
+      <div
+        className="fixed inset-0 pointer-events-none z-5"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, rgba(10,12,8,0.25) 0%, rgba(10,12,8,0.55) 30%, rgba(10,12,8,0.85) 60%, rgba(10,12,8,0.97) 100%)",
+        }}
+      />
 
-        <div className="hud-top-row">
-          <span className="mono-label">HAPPY BIRTHDAY FROM YOUR FRIENDS, DEDALUS, AND KEVIN LIU!</span>
-          <span className="mono-label">03.12.2026</span>
-        </div>
+      <HudOverlay isHidden={isModalOpen || highlightedIndex !== null} />
 
-        <div className="birthday-header">
-          <p className="birthday-pre">HAPPY {BIRTHDAY_AGE}ND BIRTHDAY</p>
-          <h1 className="birthday-name">CATHY</h1>
-        </div>
-
-        <div className="hud-center-hint">
-          <span className="mono-label">( click any photo )</span>
-        </div>
-
-        <div className="hud-bottom-row">
-          <div className="hud-status-pill">
-            <span className="hud-dot" />
-            <span className="mono-label">ACTIVE</span>
-          </div>
-          <span className="mono-label">&gt;</span>
-          <span className="mono-label">MEMORIES: {IMAGES.length}</span>
-          <span className="mono-label">&gt;</span>
-          <span className="mono-label">UNIT: {BIRTHDAY_AGE}</span>
-          <span className="mono-label">&gt;</span>
-          <span className="mono-label">03.12.2026</span>
-        </div>
-      </div>
-
-      {flyingImage && (
-        <div
-          className={`zoom-flyout${flyToCenter ? " zoom-flyout--centered" : ""}${flyFading ? " zoom-flyout--fading" : ""}`}
-          style={{
-            left: flyingImage.endX,
-            top: flyingImage.endY,
-            width: flyingImage.endW,
-            height: flyingImage.endH,
-            transform: flyToCenter
-              ? "translate3d(0,0,0) scale3d(1,1,1)"
-              : `translate3d(${flyingImage.x - flyingImage.endX}px,${flyingImage.y - flyingImage.endY}px,0) scale3d(${flyingImage.w / flyingImage.endW},${flyingImage.h / flyingImage.endH},1)`,
-          }}
-        >
-          <img src={flyingImage.src} alt="" draggable={false} />
-        </div>
-      )}
+      {flyout && <ZoomFlyout flyout={flyout} />}
 
       <PhotoModal
         imageSrc={imageSrc}
         imageIndex={selectedIndex}
         totalImages={IMAGES.length}
         isOpen={isModalOpen}
-        hideImage={flyingImage !== null && !flyFading}
+        hideImage={flyout !== null && !flyout.fading}
         onClose={handleCloseModal}
         onPrev={handlePrev}
         onNext={handleNext}

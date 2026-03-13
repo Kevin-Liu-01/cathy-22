@@ -1,13 +1,17 @@
 "use client";
 
-import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import {
+  useMemo,
+  useRef,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+  memo,
+} from "react";
 import { GRID_COLS, SCROLL_DURATION_S } from "@/lib/constants";
+import type { TileInfo } from "@/lib/types";
 
-export interface TileInfo {
-  rect: DOMRect;
-  naturalWidth: number;
-  naturalHeight: number;
-}
+export type { TileInfo };
 
 export interface PhotoMuralHandle {
   getRandomVisibleIndex: () => number | null;
@@ -21,129 +25,190 @@ interface PhotoMuralProps {
   onImageClick: (index: number) => void;
 }
 
+const MuralTile = memo(function MuralTile({
+  src,
+  origIdx,
+  isHighlighted,
+}: {
+  src: string;
+  origIdx: number;
+  isHighlighted: boolean;
+}) {
+  return (
+    <button
+      data-index={origIdx}
+      className={`group block p-[3px] bg-transparent cursor-pointer relative hover:z-10 ${
+        isHighlighted ? "tile-highlighted" : ""
+      }`}
+      style={{ contain: "layout style" }}
+      type="button"
+    >
+      <img
+        src={src}
+        alt=""
+        className="w-full h-full object-cover rounded-[3px] block border border-white/4 brightness-[0.8] saturate-[0.95] transition-[border-color,box-shadow,transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:border-accent group-hover:shadow-[0_0_20px_rgba(201,168,76,0.25)] group-hover:scale-105 group-hover:brightness-100 group-hover:saturate-100"
+        loading="eager"
+        draggable={false}
+      />
+    </button>
+  );
+});
+
+function seededShuffle(length: number, cols: number): number[] {
+  const indices = Array.from({ length }, (_, i) => i);
+  let seed = 42;
+  for (let i = indices.length - 1; i > 0; i--) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const j = seed % (i + 1);
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const remainder = indices.length % cols;
+  if (remainder !== 0) {
+    const pad = cols - remainder;
+    const mid = Math.floor(indices.length / 2);
+    for (let p = 0; p < pad; p++) {
+      indices.push(indices[(mid + p) % length]);
+    }
+  }
+  return indices;
+}
+
+function buildTiledGrid(
+  shuffled: number[],
+  cols: number,
+  images: string[]
+): { src: string; origIdx: number }[] {
+  const rows = shuffled.length / cols;
+  const result: { src: string; origIdx: number }[] = [];
+  for (let by = 0; by < 2; by++) {
+    for (let row = 0; row < rows; row++) {
+      for (let bx = 0; bx < 2; bx++) {
+        for (let col = 0; col < cols; col++) {
+          const idx = row * cols + col;
+          const origIdx = shuffled[idx];
+          result.push({ src: images[origIdx], origIdx });
+        }
+      }
+    }
+  }
+  return result;
+}
+
 const PhotoMural = forwardRef<PhotoMuralHandle, PhotoMuralProps>(
-  function PhotoMural({ images, isPaused, highlightedIndex, onImageClick }, ref) {
-    const tileRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  function PhotoMural(
+    { images, isPaused, highlightedIndex, onImageClick },
+    ref
+  ) {
+    const scrollLayerRef = useRef<HTMLDivElement>(null);
 
-    const shuffledIndices = useMemo(() => {
-      const indices = Array.from({ length: images.length }, (_, i) => i);
-      let seed = 42;
-      for (let i = indices.length - 1; i > 0; i--) {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        const j = seed % (i + 1);
-        [indices[i], indices[j]] = [indices[j], indices[i]];
-      }
-      const remainder = indices.length % GRID_COLS;
-      if (remainder !== 0) {
-        const pad = GRID_COLS - remainder;
-        const mid = Math.floor(indices.length / 2);
-        for (let p = 0; p < pad; p++) {
-          indices.push(indices[(mid + p) % images.length]);
-        }
-      }
-      return indices;
-    }, [images.length]);
+    const shuffledIndices = useMemo(
+      () => seededShuffle(images.length, GRID_COLS),
+      [images.length]
+    );
 
-    const rows = shuffledIndices.length / GRID_COLS;
+    const tiledImages = useMemo(
+      () => buildTiledGrid(shuffledIndices, GRID_COLS, images),
+      [shuffledIndices, images]
+    );
 
-    const tiledImages = useMemo(() => {
-      const result: { src: string; origIdx: number }[] = [];
-      for (let by = 0; by < 2; by++) {
-        for (let row = 0; row < rows; row++) {
-          for (let bx = 0; bx < 2; bx++) {
-            for (let col = 0; col < GRID_COLS; col++) {
-              const idx = row * GRID_COLS + col;
-              const origIdx = shuffledIndices[idx];
-              result.push({ src: images[origIdx], origIdx });
-            }
-          }
-        }
-      }
-      return result;
-    }, [shuffledIndices, rows, images]);
+    const handleClick = useCallback(
+      (e: React.MouseEvent) => {
+        const button = (e.target as HTMLElement).closest<HTMLButtonElement>(
+          "button[data-index]"
+        );
+        if (!button) return;
+        const index = Number(button.dataset.index);
+        if (!Number.isNaN(index)) onImageClick(index);
+      },
+      [onImageClick]
+    );
 
     const getRandomVisibleIndex = useCallback((): number | null => {
+      const layer = scrollLayerRef.current;
+      if (!layer) return null;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const visible = new Set<number>();
+      const tiles =
+        layer.querySelectorAll<HTMLButtonElement>("button[data-index]");
 
-      for (let i = 0; i < tiledImages.length; i++) {
-        const el = tileRefs.current[i];
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
+      for (const tile of tiles) {
+        const rect = tile.getBoundingClientRect();
         const cx = (rect.left + rect.right) / 2;
         const cy = (rect.top + rect.bottom) / 2;
         if (cx > 0 && cx < vw && cy > 0 && cy < vh) {
-          visible.add(tiledImages[i].origIdx);
+          visible.add(Number(tile.dataset.index));
         }
       }
 
       if (visible.size === 0) return null;
       const arr = Array.from(visible);
       return arr[Math.floor(Math.random() * arr.length)];
-    }, [tiledImages]);
-
-    const getTileInfo = useCallback((origIdx: number): TileInfo | null => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      for (let i = 0; i < tiledImages.length; i++) {
-        if (tiledImages[i].origIdx !== origIdx) continue;
-        const el = tileRefs.current[i];
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        const cx = (rect.left + rect.right) / 2;
-        const cy = (rect.top + rect.bottom) / 2;
-        if (cx > 0 && cx < vw && cy > 0 && cy < vh) {
-          const img = el.querySelector("img");
-          return {
-            rect,
-            naturalWidth: img?.naturalWidth ?? rect.width,
-            naturalHeight: img?.naturalHeight ?? rect.height,
-          };
-        }
-      }
-      return null;
-    }, [tiledImages]);
-
-    useImperativeHandle(ref, () => ({ getRandomVisibleIndex, getTileInfo }), [getRandomVisibleIndex, getTileInfo]);
-
-    const setTileRef = useCallback((el: HTMLButtonElement | null, i: number) => {
-      tileRefs.current[i] = el;
     }, []);
+
+    const getTileInfo = useCallback(
+      (origIdx: number): TileInfo | null => {
+        const layer = scrollLayerRef.current;
+        if (!layer) return null;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const tiles = layer.querySelectorAll<HTMLButtonElement>(
+          `button[data-index="${origIdx}"]`
+        );
+
+        for (const tile of tiles) {
+          const rect = tile.getBoundingClientRect();
+          const cx = (rect.left + rect.right) / 2;
+          const cy = (rect.top + rect.bottom) / 2;
+          if (cx > 0 && cx < vw && cy > 0 && cy < vh) {
+            const img = tile.querySelector("img");
+            return {
+              rect,
+              naturalWidth: img?.naturalWidth ?? rect.width,
+              naturalHeight: img?.naturalHeight ?? rect.height,
+            };
+          }
+        }
+        return null;
+      },
+      []
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({ getRandomVisibleIndex, getTileInfo }),
+      [getRandomVisibleIndex, getTileInfo]
+    );
 
     const isHighlighting = highlightedIndex !== null;
 
     return (
-      <div className={`mural-viewport ${isHighlighting ? "mural-viewport--highlighting" : ""}`}>
+      <div
+        className={`fixed inset-0 overflow-hidden bg-surface ${
+          isHighlighting ? "z-20 mural-highlighting" : "z-0"
+        }`}
+      >
         <div
-          className="mural-scroll-layer"
+          ref={scrollLayerRef}
+          className="grid will-change-transform"
           style={{
             gridTemplateColumns: `repeat(${GRID_COLS * 2}, var(--tile-w))`,
-            animationDuration: `${SCROLL_DURATION_S}s`,
+            gridAutoRows: "var(--tile-h)",
+            animation: `mural-scroll ${SCROLL_DURATION_S}s linear infinite`,
             animationPlayState: isPaused ? "paused" : "running",
           }}
+          onClick={handleClick}
         >
-          {tiledImages.map((tile, i) => {
-            const isHighlighted = isHighlighting && tile.origIdx === highlightedIndex;
-            return (
-              <button
-                key={i}
-                ref={(el) => setTileRef(el, i)}
-                className={`mural-tile ${isHighlighted ? "mural-tile--highlighted" : ""}`}
-                onClick={() => onImageClick(tile.origIdx)}
-                type="button"
-              >
-                <img
-                  src={tile.src}
-                  alt=""
-                  className="mural-tile-img"
-                  loading="eager"
-                  draggable={false}
-                />
-              </button>
-            );
-          })}
+          {tiledImages.map((tile, i) => (
+            <MuralTile
+              key={i}
+              src={tile.src}
+              origIdx={tile.origIdx}
+              isHighlighted={
+                isHighlighting && tile.origIdx === highlightedIndex
+              }
+            />
+          ))}
         </div>
       </div>
     );

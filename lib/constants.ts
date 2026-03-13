@@ -1,5 +1,6 @@
 export const BIRTHDAY_NAME = "Cathy";
 export const BIRTHDAY_AGE = 22;
+export const OPERATION_NAME = "CATHY-22";
 
 export const GRID_COLS = 8;
 export const SCROLL_DURATION_S = 80;
@@ -142,6 +143,28 @@ const IMAGE_FILENAMES: string[] = [
   "FF9ED1A1-CEAC-4398-AB09-EF4B3082C8A4_1_105_c.jpeg",
 ];
 
-export const IMAGES = IMAGE_FILENAMES.map(
-  (f) => `/images/${encodeURIComponent(f)}`
-);
+const AARON_FILENAMES: string[] = [
+  "DSC00040.JPG",
+  "DSC00083.JPG",
+  "DSC00105.JPG",
+  "DSC01036.JPG",
+  "DSC01078.JPG",
+  "DSC02777.JPG",
+  "DSC02804.JPG",
+  "DSC03008.JPG",
+  "DSC03030.JPG",
+  "DSC03031.JPG",
+  "DSC03166.JPG",
+  "DSC03193.JPG",
+  "DSC09660.JPG",
+  "DSC09675.JPG",
+  "DSC09679.JPG",
+  "DSC09684.JPG",
+  "DSC09840.JPG",
+  "DSC09903.JPG",
+];
+
+export const IMAGES = [
+  ...IMAGE_FILENAMES.map((f) => `/images/${encodeURIComponent(f)}`),
+  ...AARON_FILENAMES.map((f) => `/images/aaron/${encodeURIComponent(f)}`),
+];
