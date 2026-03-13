@@ -9,16 +9,18 @@ interface HudOverlayProps {
 export default function HudOverlay({ isHidden }: HudOverlayProps) {
   return (
     <div
-      className={`fixed inset-0 z-10 pointer-events-none flex flex-col items-center justify-center transition-opacity duration-400 ${
-        isHidden ? "opacity-0" : ""
-      }`}
+      className={`fixed inset-0 z-10 pointer-events-none flex flex-col items-center justify-center transition-opacity duration-400 ${isHidden ? "opacity-0" : ""
+        }`}
     >
       <CornerMarks />
 
       {/* Top row */}
       <div className="absolute top-9 md:top-11 left-9 md:left-12 right-9 md:right-12 flex justify-between">
         <MonoLabel>
-          HAPPY BIRTHDAY FROM YOUR FRIENDS, DEDALUS, AND KEVIN LIU!
+          <span className="md:hidden">HAPPY BIRTHDAY FROM KEVIN LIU</span>
+          <span className="hidden md:inline">
+            HAPPY BIRTHDAY FROM YOUR FRIENDS, DEDALUS, AND KEVIN LIU!
+          </span>
         </MonoLabel>
         <MonoLabel>12 MAR 2026</MonoLabel>
       </div>
